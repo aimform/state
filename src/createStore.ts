@@ -32,16 +32,23 @@ export function createStore<T extends Record<string, unknown>>(
       }
     };
 
-    const actions = actionsFn(
+    const rawActions = actionsFn(
       immerSet as unknown as (p: Partial<T>) => void,
       get as () => T,
     );
+
+    // Pre-bind set/get to each action so consumers call store.fetchItems(args)
+    // instead of store.fetchItems(set, get, args)
+    const boundActions: Record<string, (...args: never[]) => unknown> = {};
+    for (const [key, action] of Object.entries(rawActions)) {
+      boundActions[key] = (...args: unknown[]) => (action as (...a: unknown[]) => unknown)(immerSet as unknown as (p: Partial<T>) => void, get as () => T, ...args);
+    }
 
     return {
       ...initial,
       loading: ((initial as Record<string, unknown>).loading as Record<string, boolean>) ?? {},
       errors: ((initial as Record<string, unknown>).errors as Record<string, string | null>) ?? {},
-      ...actions,
+      ...boundActions,
     } as FullState;
   });
 }
