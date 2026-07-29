@@ -1,7 +1,7 @@
 {
   "name": "@aimform/state",
-  "version": "0.1.0",
-  "description": "Aimform State — Zustand utilities: withLoading, async wrappers, and store patterns for the Aimform platform.",
+  "version": "0.2.0",
+  "description": "Aimform State — complete Zustand + Immer abstraction. Create stores, async actions, and hooks without importing zustand or immer directly.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -17,17 +17,28 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "immer": "^10.0.0"
+    "immer": "^10.0.0",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@types/react": "^19.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "react": "^19.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aimform/state.git"
   },
-  "keywords": ["aimform", "zustand", "state", "immer", "async"],
+  "keywords": ["aimform", "zustand", "state", "immer", "async", "store"],
   "author": "Universal Reason LLC",
   "homepage": "https://aimform.com"
 }

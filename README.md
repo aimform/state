@@ -1,94 +1,110 @@
 # @aimform/state
 
-> Zustand utilities for the Aimform platform — `withLoading`, async wrappers, and standardized store types.
-
-## Install
+> Complete Zustand + Immer abstraction. Create stores, async actions, and hooks without importing `zustand` or `immer` directly.
 
 ```sh
-npm install @aimform/state immer
+npm install @aimform/state
 ```
+
+No other state dependencies needed — `zustand` and `immer` are bundled.
 
 ## Usage
 
+### `createStore(initialData, actionsFactory)`
+
+Creates a Zustand store with Immer-powered immutable updates and built-in `loading`/`errors` state.
+
 ```ts
-import { create } from "zustand";
-import { withLoading } from "@aimform/state";
-import type { AsyncState } from "@aimform/state";
-import * as api from "./my-api";
+import { createStore, withLoading } from "@aimform/state";
 
-interface MyState extends AsyncState {
-  items: Item[];
-  fetchItems: () => Promise<void>;
+const useStore = createStore({
+  items: [] as Item[],
+  filter: "" as string,
+}, (set, get) => ({
+  fetchItems: withLoading("fetchItems", async ({ setKey }, orgId: string) => {
+    const items = await api.fetchItems(orgId);
+    setKey("items", items);
+  }),
+
+  addItem: withLoading("addItem", async ({ setKey }, item: Item) => {
+    const created = await api.createItem(item);
+    setKey("items", [created, ...get().items]);
+  }),
+
+  setFilter: (filter: string) => set({ filter }),
+}));
+```
+
+### `withLoading(key, fn)`
+
+Wraps an async action. Returns a function that receives the store context and the action's own arguments.
+
+| Field | Description |
+|-------|-------------|
+| `key` | Unique action key stored in `loading` and `errors` maps |
+| `fn` | `(ctx, ...args) => Promise<T>` — async function with `ctx.setKey` and `ctx.setError` |
+
+**State contract:** Every store using `createStore` automatically gets:
+- `loading: Record<string, boolean>` — `true` while action runs, `false` after
+- `errors: Record<string, string | null>` — error message on failure, `null` otherwise
+- Both managed entirely by `withLoading` — you never set them manually
+
+### `LoadingContext`
+
+```ts
+interface LoadingContext {
+  setKey: (path: string | string[], value: unknown) => void;  // deep set via immer
+  setError: (msg: string | null) => void;                      // set error for this action
 }
+```
 
-export const useMyStore = create<MyState>()((set, get) => ({
-  items: [],
-  loading: {},
-  errors: {},
+### Hooks
 
-  fetchItems: async () => {
-    return withLoading("fetchItems", async (_set, _get, setKey, setError) => {
-      const items = await api.fetchItems();
-      setKey("items", items);
-    }, set as never, get as never);
-  },
+Write hooks manually to expose `{ data, isLoading, error, run }`:
+
+```ts
+export function useItems() {
+  const data = useStore((s) => s.items);
+  const isLoading = useStore((s) => s.loading["fetchItems"] ?? false);
+  const error = useStore((s) => s.errors["fetchItems"] ?? null);
+  return { data, isLoading, error, run: (orgId: string) => useStore.getState().fetchItems(orgId) };
+}
+```
+
+## Full example — store + hooks
+
+```ts
+// store.ts
+import { createStore, withLoading } from "@aimform/state";
+import * as api from "./api";
+
+export const useSpacesStore = createStore({
+  spaces: [] as Space[],
+}, (set, get) => ({
+  fetchSpaces: withLoading("fetchSpaces", async ({ setKey }, orgId: string) => {
+    setKey("spaces", await api.listSpaces(orgId));
+  }),
+  createSpace: withLoading("createSpace", async ({ setKey }, name: string) => {
+    const space = await api.createSpace(name);
+    setKey("spaces", [space, ...get().spaces]);
+  }),
 }));
 
-// Hook
-export function useFetchItems() {
-  const items = useMyStore((s) => s.items);
-  const isLoading = useMyStore((s) => s.loading["fetchItems"] ?? false);
-  const error = useMyStore((s) => s.errors["fetchItems"]);
-  const fetchItems = useMyStore((s) => s.fetchItems);
-  return { data: items, isLoading, error, run: fetchItems };
+// hooks.ts
+export function useSpaces() {
+  const data = useSpacesStore((s) => s.spaces);
+  const isLoading = useSpacesStore((s) => s.loading["fetchSpaces"] ?? false);
+  return { data, isLoading, run: (orgId: string) => useSpacesStore.getState().fetchSpaces(orgId) };
 }
 ```
 
-## API
+## Why not use zustand directly?
 
-### `withLoading(key, fn, set, get, ...args)`
+- No manual `loading`/`errors` boilerplate — `withLoading` handles it
+- Immer baked in — `setKey("items", [...get().items, newItem])` works without spread operators
+- Consistent action pattern across every store in your project
+- One dependency (`@aimform/state`) instead of three (`zustand`, `immer`, `@aimform/state`)
 
-Generic async wrapper that manages `loading[key]` and `errors[key]` state.
+## License
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `key` | `string` | Unique action key (e.g. `"fetchItems"`) |
-| `fn` | `(set, get, setKey, setError, ...args) => Promise<void>` | Async function to execute |
-| `set` | `(partial) => void` | Zustand `set` |
-| `get` | `() => state` | Zustand `get` |
-| `...args` | `T` | Passed through to `fn` |
-
-**Inside `fn`:**
-- `setKey(path, value)` — update nested state (deep path via immer)
-- `setError(msg)` — set error for the action key
-
-**State contract:**
-- `loading[key]` set to `true` before, `false` after
-- `errors[key]` set to `null` before, error message on failure
-- Errors are caught and stored; function does not throw
-
-### `AsyncState` interface
-
-```ts
-interface AsyncState {
-  loading: Record<string, boolean>;
-  errors: Record<string, string | null>;
-}
-```
-
-Extend your store with `AsyncState` to get typed loading/errors.
-
-### `StoreHook<T>` type
-
-```ts
-interface StoreHook<T> {
-  data: T;
-  isLoading: boolean;
-  error: string | null;
-  run: (...args: unknown[]) => Promise<void>;
-}
-```
-
-Standard shape for hooks that wrap store actions.
-
-→ [Building custom stores](../docs/standards/zustand-standards.md)
+MIT © Universal Reason LLC
