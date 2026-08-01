@@ -1,6 +1,6 @@
 {
   "name": "@aimform/state",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Aimform State — complete Zustand + Immer abstraction. Create stores, async actions, and hooks without importing zustand or immer directly.",
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,11 @@
       "import": "./src/index.ts"
     }
   },
-  "files": ["src", "README.md", "LICENSE"],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
@@ -38,7 +42,14 @@
     "type": "git",
     "url": "git+https://github.com/aimform/state.git"
   },
-  "keywords": ["aimform", "zustand", "state", "immer", "async", "store"],
+  "keywords": [
+    "aimform",
+    "zustand",
+    "state",
+    "immer",
+    "async",
+    "store"
+  ],
   "author": "Universal Reason LLC",
   "homepage": "https://aimform.com"
 }

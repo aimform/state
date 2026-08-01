@@ -11,10 +11,7 @@ export interface LoadingContext {
  */
 export function createStore<T extends Record<string, unknown>>(
   initial: T,
-  actionsFn: (
-    set: (p: Partial<T>) => void,
-    get: () => T,
-  ) => Record<string, (...args: never[]) => unknown>,
+  actionsFn: (set: (p: Partial<T>) => void, get: () => T) => Record<string, (...args: never[]) => unknown>,
 ) {
   type FullState = T & { loading: Record<string, boolean>; errors: Record<string, string | null> };
 
@@ -32,16 +29,18 @@ export function createStore<T extends Record<string, unknown>>(
       }
     };
 
-    const rawActions = actionsFn(
-      immerSet as unknown as (p: Partial<T>) => void,
-      get as () => T,
-    );
+    const rawActions = actionsFn(immerSet as unknown as (p: Partial<T>) => void, get as () => T);
 
     // Pre-bind set/get to each action so consumers call store.fetchItems(args)
     // instead of store.fetchItems(set, get, args)
     const boundActions: Record<string, (...args: never[]) => unknown> = {};
     for (const [key, action] of Object.entries(rawActions)) {
-      boundActions[key] = (...args: unknown[]) => (action as (...a: unknown[]) => unknown)(immerSet as unknown as (p: Partial<T>) => void, get as () => T, ...args);
+      boundActions[key] = (...args: unknown[]) =>
+        (action as (...a: unknown[]) => unknown)(
+          immerSet as unknown as (p: Partial<T>) => void,
+          get as () => T,
+          ...args,
+        );
     }
 
     return {
@@ -55,31 +54,35 @@ export function createStore<T extends Record<string, unknown>>(
 
 /**
  * Wraps an async action with loading/error state management.
- * The returned function receives (set, get, ...userArgs).
+ * The returned function receives (set, get, ...userArgs) and resolves to
+ * whatever `fn` resolved to (or `undefined` if it threw — errors are
+ * swallowed into `errors[key]` rather than rejecting, so callers can use a
+ * simple `if (result) {...}` to check for success).
  */
-export function withLoading<TArgs extends unknown[]>(
+export function withLoading<TArgs extends unknown[], TResult = void>(
   key: string,
-  fn: (ctx: LoadingContext, ...args: TArgs) => Promise<void>,
+  fn: (ctx: LoadingContext, ...args: TArgs) => Promise<TResult>,
 ) {
   return (
     set: (p: Record<string, unknown>) => void,
     get: () => Record<string, unknown>,
     ...args: TArgs
-  ): Promise<void> => {
+  ): Promise<TResult | undefined> => {
     const begin = (s: Record<string, unknown>) => {
-      const ld = { ...(s.loading as Record<string, boolean> ?? {}), [key]: true };
-      const er = { ...(s.errors as Record<string, string | null> ?? {}), [key]: null };
+      const ld = { ...((s.loading as Record<string, boolean>) ?? {}), [key]: true };
+      const er = { ...((s.errors as Record<string, string | null>) ?? {}), [key]: null };
       return { loading: ld, errors: er };
     };
     const end = (s: Record<string, unknown>, error?: string) => {
-      const ld = { ...(s.loading as Record<string, boolean> ?? {}), [key]: false };
-      const er = { ...(s.errors as Record<string, string | null> ?? {}), [key]: error ?? null };
+      const ld = { ...((s.loading as Record<string, boolean>) ?? {}), [key]: false };
+      const er = { ...((s.errors as Record<string, string | null>) ?? {}), [key]: error ?? null };
       return { loading: ld, errors: er };
     };
 
     set(begin(get() as Record<string, unknown>));
 
     let caught: Error | null = null;
+    let result: TResult | undefined;
 
     const ctx: LoadingContext = {
       setKey(path: string | string[], value: unknown) {
@@ -91,7 +94,7 @@ export function withLoading<TArgs extends unknown[]>(
           const neu = { ...current };
           let obj: Record<string, unknown> = neu;
           for (let i = 0; i < keys.length - 1; i++) {
-            obj[keys[i]] = { ...(obj[keys[i]] as Record<string, unknown> ?? {}) };
+            obj[keys[i]] = { ...((obj[keys[i]] as Record<string, unknown>) ?? {}) };
             obj = obj[keys[i]] as Record<string, unknown>;
           }
           obj[keys[keys.length - 1]] = value;
@@ -100,15 +103,21 @@ export function withLoading<TArgs extends unknown[]>(
       },
       setError(msg: string | null) {
         const s = get() as Record<string, unknown>;
-        const e = { ...(s.errors as Record<string, string | null> ?? {}), [key]: msg };
+        const e = { ...((s.errors as Record<string, string | null>) ?? {}), [key]: msg };
         set({ errors: e } as Record<string, unknown>);
       },
     };
 
     return fn(ctx, ...args)
-      .catch((e) => { caught = e as Error; })
+      .then((r) => {
+        result = r;
+      })
+      .catch((e) => {
+        caught = e as Error;
+      })
       .finally(() => {
         set(end(get() as Record<string, unknown>, caught?.message));
-      });
+      })
+      .then(() => result);
   };
 }
