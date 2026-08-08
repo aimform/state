@@ -1,6 +1,8 @@
 import { produce } from "immer";
 
-type ZustandSet = (partial: Record<string, unknown> | ((state: Record<string, unknown>) => Partial<Record<string, unknown>>)) => void;
+type ZustandSet = (
+  partial: Record<string, unknown> | ((state: Record<string, unknown>) => Partial<Record<string, unknown>>),
+) => void;
 type ZustandGet = () => Record<string, unknown>;
 
 export async function withLoading<T extends unknown[]>(
@@ -37,7 +39,7 @@ export async function withLoading<T extends unknown[]>(
           obj = obj[keys[i]] as Record<string, unknown>;
         }
         obj[keys[keys.length - 1]] = value;
-      }) as unknown as Record<string, unknown>
+      }) as unknown as Record<string, unknown>,
     );
   };
 

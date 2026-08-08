@@ -16,7 +16,7 @@ export function createStore<T extends Record<string, unknown>>(
   type FullState = T & { loading: Record<string, boolean>; errors: Record<string, string | null> };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return create<FullState>()((set: any, get: any) => {
+  return create<FullState & Record<string, (...args: any[]) => any>>()((set: any, get: any) => {
     const immerSet = (partial: Partial<FullState> | ((s: FullState) => void)) => {
       if (typeof partial === "function") {
         set((s: FullState) => {
@@ -48,7 +48,7 @@ export function createStore<T extends Record<string, unknown>>(
       loading: ((initial as Record<string, unknown>).loading as Record<string, boolean>) ?? {},
       errors: ((initial as Record<string, unknown>).errors as Record<string, string | null>) ?? {},
       ...boundActions,
-    } as FullState;
+    } as unknown as FullState & Record<string, (...args: any[]) => any>;
   });
 }
 
