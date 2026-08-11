@@ -101,9 +101,45 @@ export function useSpaces() {
 ## Why not use zustand directly?
 
 - No manual `loading`/`errors` boilerplate — `withLoading` handles it
-- Immer baked in — `setKey("items", [...get().items, newItem])` works without spread operators
 - Consistent action pattern across every store in your project
 - One dependency (`@aimform/state`) instead of three (`zustand`, `immer`, `@aimform/state`)
+- **SSR-ready** — `createServerStore` works in Workers, Node.js, and tests without React
+
+## SSR (Server-Side Rendering)
+
+Uses `createServerStore` — a vanilla Zustand store (no React hooks). Same `withLoading` actions run on both server and client.
+
+```ts
+import { createServerStore, withLoading } from "@aimform/state";
+
+// Server: isolated per-request store
+const serverStore = createServerStore(
+  { items: [] as Item[] },
+  (set, get) => ({
+    fetchItems: withLoading("fetchItems", async ({ setKey }) => {
+      setKey("items", await api.list());
+    }),
+  }),
+);
+
+// Worker: pre-fetch → serialize → inject
+await serverStore.getState().fetchItems();
+const { loading, errors, ...data } = serverStore.getState();
+const html = template.replace("</head>",
+  `<script>window.__SSR_STATE__=${JSON.stringify(data)}</script></head>`
+);
+
+// Client: hydrate React store from server state
+import { useItemsStore } from "./items-store";
+useItemsStore.setState(JSON.parse(window.__SSR_STATE__));
+createRoot(root).render(<App />);
+```
+
+### Key rules
+1. `createServerStore` on server, `createStore` on client — same `withLoading` actions
+2. Never serialize `loading`/`errors` — hydration mismatch
+3. One store per request — `createServerStore` creates isolated instances
+4. Pre-fetch all data before `renderToString` — SSR is synchronous
 
 ## License
 

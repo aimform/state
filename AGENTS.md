@@ -8,7 +8,8 @@
 
 | Export | Kind | Purpose |
 |--------|------|---------|
-| `createStore(initialData, actionsFactory)` | function | Creates a Zustand store with Immer-powered immutable updates |
+| `createStore(initialData, actionsFactory)` | function | Creates a Zustand React hook store |
+| `createServerStore(initialData, actionsFactory)` | function | Creates a vanilla Zustand store (no React) — for SSR/tests |
 | `withLoading(key, fn)` | function | Wraps an async action — manages `loading` and `errors` automatically |
 | `LoadingContext` | interface | Context object passed to `withLoading` callbacks |
 | `AsyncState` | type | `{ loading, errors }` shape |
@@ -30,6 +31,92 @@ const useStore = createStore({
   setFilter: (filter: string) => set({ filter }),
 }));
 ```
+
+## SSR (Server-Side Rendering)
+
+`@aimform/state` supports SSR via `createServerStore` — a vanilla Zustand store that works without React. The same `withLoading` actions run on both server and client.
+
+### Architecture
+
+```
+Server (Cloudflare Worker, per-request):
+  1. createServerStore() → fresh isolated store
+  2. store.getState().fetchData() → pre-fetch all data
+  3. strip loading/errors → serialize to JSON
+  4. Inject as window.__SSR_STATE__ into HTML
+  5. renderToString(<App />) → SSR HTML with real data
+
+Client (Browser):
+  1. Parse window.__SSR_STATE__ → hydrate React stores
+  2. createRoot/hydrateRoot(<App />) → render with pre-filled data
+  3. Components see data immediately — no spinners, no API calls
+```
+
+### Server-Side Example
+
+```ts
+import { createServerStore, withLoading } from "@aimform/state";
+
+// Same store definition as client, but using createServerStore
+const conversationsStore = createServerStore(
+  { conversations: [] as Conversation[] },
+  (set, get) => ({
+    fetchConversations: withLoading("fetchConversations", async ({ setKey }, orgId, userId) => {
+      const result = await api.listConversations(orgId, userId);
+      setKey("conversations", result);
+    }),
+  }),
+);
+
+// Worker fetch handler
+export default {
+  async fetch(request: Request) {
+    const orgId = "d335a596-...";
+    const userId = "6d92ce99-...";
+
+    // Pre-fetch data — same withLoading action as the client uses
+    await conversationsStore.getState().fetchConversations(orgId, userId);
+
+    // Serialize state (strip loading/errors — they're transient UI state)
+    const full = conversationsStore.getState();
+    const { loading, errors, ...serializable } = full;
+    const stateJson = JSON.stringify(serializable);
+
+    // Inject into HTML
+    const html = template.replace(
+      "</head>",
+      `<script>window.__SSR_STATE__={"conversations":${stateJson}}</script></head>`,
+    );
+
+    return new Response(html, { headers: { "content-type": "text/html" } });
+  },
+};
+```
+
+### Client-Side Hydration
+
+```ts
+// entry-client.tsx
+import { useConversationsStore } from "../store/conversations-store";
+
+if (window.__SSR_STATE__) {
+  const state = JSON.parse(window.__SSR_STATE__);
+  // Hydrate React stores from server state
+  useConversationsStore.setState(state.conversations);
+  // Component selectors now return pre-filled data — no loading spinner
+}
+
+createRoot(document.getElementById("root")!).render(<App />);
+```
+
+### Key Rules for SSR
+
+1. **Use `createServerStore` on the server** — never `createStore` (which creates React hooks)
+2. **Same `withLoading` actions work everywhere** — the action code is identical; only the store creation differs
+3. **Never serialize `loading` or `errors`** — they are transient UI state; stripping them prevents hydration mismatches
+4. **One store instance per request** — `createServerStore` creates isolated instances; don't share state across requests
+5. **Pre-fetch all data before `renderToString`** — SSR is synchronous; all API calls must complete first
+6. **Hydrate stores before `createRoot`/`hydrateRoot`** — stores must have data before React renders
 
 ## The `withLoading` Contract
 
