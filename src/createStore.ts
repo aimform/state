@@ -1,6 +1,15 @@
 import type { StoreApi, UseBoundStore } from "zustand";
 import { useStore as useZustandStore } from "zustand/react";
 import { createStore as createVanillaStore } from "zustand/vanilla";
+import {
+  createAnonymousStoreName,
+  getRealtimeCoordinator,
+  inferResourcesForAction,
+  isRealtimeQueryAction,
+  STORE_ACTION_RUNTIME,
+  type StoreActionRuntime,
+  serializeRealtimeQueryArgs,
+} from "./realtime";
 import { getScoped } from "./request-scope";
 
 export interface LoadingContext {
@@ -15,22 +24,44 @@ export interface CreateStoreOptions {
 
 // Shared internal: build a setter + getter pair for vanilla stores.
 function buildActions<T extends Record<string, unknown>>(
-  initial: T,
+  _initial: T,
   actionsFn: (set: (p: Partial<T>) => void, get: () => T) => Record<string, (...args: never[]) => unknown>,
   set: (p: Partial<T>) => void,
   get: () => T,
+  storeName?: string,
+  realtimeEnabled = false,
 ): Record<string, (...args: never[]) => unknown> {
+  const effectiveStoreName = storeName ?? createAnonymousStoreName();
   const rawActions = actionsFn(set, get);
   const boundActions: Record<string, (...args: never[]) => unknown> = {};
   for (const [key, action] of Object.entries(rawActions)) {
-    boundActions[key] = (...args: unknown[]) => (action as (...a: unknown[]) => unknown)(set, get, ...args);
+    boundActions[key] = (...args: unknown[]) => {
+      const isQuery = realtimeEnabled && isRealtimeQueryAction(key);
+      const trackedResources = inferResourcesForAction(key);
+      const coordinator = isQuery ? getRealtimeCoordinator() : undefined;
+      const registration = isQuery
+        ? coordinator?.registerQuery({
+            key: [effectiveStoreName, key, serializeRealtimeQueryArgs(args)].join(":"),
+            actionName: key,
+            args,
+            resources: [...trackedResources],
+            refresh: () => (boundActions[key] as (...a: unknown[]) => unknown)(...args),
+          })
+        : undefined;
+      const runtime: StoreActionRuntime = {
+        actionName: key,
+        trackResource: (resource) => registration?.updateResources([resource]),
+      };
+      const runtimeGet = Object.assign(() => get(), { [STORE_ACTION_RUNTIME]: runtime });
+      return (action as (...a: unknown[]) => unknown)(set, runtimeGet, ...args);
+    };
   }
   return boundActions;
 }
 
 function makeSet<T extends Record<string, unknown>>(
   rawSet: (fn: (s: T) => T) => void,
-  get: () => T,
+  _get: () => T,
 ): (p: Partial<T>) => void {
   return (partial) => {
     if (typeof partial === "function") {
@@ -51,6 +82,7 @@ type StateOf<T> = FullStateOf<T> & Record<string, (...args: any[]) => any>;
 function buildBoundStore<T extends Record<string, unknown>>(
   initial: T,
   actionsFn: (set: (p: Partial<T>) => void, get: () => T) => Record<string, (...args: never[]) => unknown>,
+  storeName?: string,
 ): UseBoundStore<StoreApi<StateOf<T>>> {
   // Build the vanilla store ourselves (instead of going through zustand's
   // `create()`) so we keep a direct reference to `api`. Zustand's `create()`
@@ -67,6 +99,8 @@ function buildBoundStore<T extends Record<string, unknown>>(
       actionsFn,
       immerSet as unknown as (p: Partial<T>) => void,
       get as () => T,
+      storeName,
+      typeof window !== "undefined",
     );
 
     return {
@@ -108,7 +142,7 @@ export function createStore<T extends Record<string, unknown>>(
   opts?: CreateStoreOptions,
 ): UseBoundStore<StoreApi<StateOf<T>>> {
   if (opts?.name) {
-    return getScoped(opts.name, () => buildBoundStore(initial, actionsFn));
+    return getScoped(opts.name, () => buildBoundStore(initial, actionsFn, opts.name));
   }
   return buildBoundStore(initial, actionsFn);
 }
@@ -187,6 +221,8 @@ export function createServerStore<T extends Record<string, unknown>>(
       actionsFn,
       immerSet as unknown as (p: Partial<T>) => void,
       vGet as () => T,
+      undefined,
+      false,
     );
 
     return {
@@ -229,9 +265,13 @@ export function withLoading<TArgs extends unknown[], TResult = void>(
     let caught: Error | null = null;
     let result: TResult | undefined;
 
+    const runtime = (get as (() => Record<string, unknown>) & { [STORE_ACTION_RUNTIME]?: StoreActionRuntime })[
+      STORE_ACTION_RUNTIME
+    ];
     const ctx: LoadingContext = {
       setKey(path: string | string[], value: unknown) {
         const keys = Array.isArray(path) ? path : path.split(".");
+        runtime?.trackResource(keys[0]);
         if (keys.length === 1) {
           set({ [keys[0]]: value } as Record<string, unknown>);
         } else {

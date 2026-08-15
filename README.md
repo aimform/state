@@ -58,6 +58,37 @@ interface LoadingContext {
 }
 ```
 
+### Automatic realtime synchronization
+
+Browser `createStore` queries are registered automatically when an action name
+starts with `fetch`, `load`, `list`, `get`, `resolve`, `search`, `refresh`, or
+`hydrate`. `withLoading` also observes the top-level keys passed to `setKey`,
+so the state package can match a server mutation to the data the action fetched.
+Matching created, updated, deleted, changed, and domain events coalesce into a
+safe refetch of the original arguments. No store-specific WebSocket code or
+manual invalidation callback is required.
+
+Transport adapters stay provider-neutral and outside the coordinator. Use
+`createRealtimeManager` to keep one app-lifetime subscription and route any
+transport into the same state coordinator:
+
+```ts
+import { createRealtimeManager } from "@aimform/state";
+
+const manager = createRealtimeManager(myWebSocketOrSseAdapter);
+manager.start([{ id: "organization", request: { streamUrl, token } }]);
+```
+
+`myWebSocketOrSseAdapter` can be implemented with Cloudflare Durable Objects,
+AWS API Gateway, Redis, SSE, polling, or another provider. The state package
+does not import or depend on any of them.
+
+The event should identify a resource with `event.model`, `event.table`,
+`event.metadata.resources`, `resource`, or `resources`. Payload snapshots are
+not required; refetching through the normal authenticated API keeps filters,
+pagination, and row-level ACLs authoritative. The coordinator deduplicates
+sequenced events, coalesces bursts, and prevents overlapping refreshes.
+
 ### Hooks
 
 Write hooks manually to expose `{ data, isLoading, error, run }`:
