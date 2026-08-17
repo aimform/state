@@ -38,6 +38,10 @@ export interface RealtimeTransportSubscriptionRequest {
   after?: number;
   /** Optional provider protocol handshake, recalculated after reconnect. */
   openMessage?: unknown | ((after: number) => unknown);
+  /** Called after the socket re-establishes following a drop (not on first
+   * connect), so callers can replay client→server declarations such as
+   * room/subscription messages lost with the old socket. */
+  onReconnect?: () => void;
 }
 
 export interface RealtimeTransportSubscription {
