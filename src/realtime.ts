@@ -42,6 +42,12 @@ export interface RealtimeTransportSubscriptionRequest {
 
 export interface RealtimeTransportSubscription {
   close: () => void;
+  /**
+   * Optional client→server channel on the same socket (e.g. room/subscription
+   * declarations or protocol heartbeats). Providers that only support
+   * server→client streams omit it.
+   */
+  send?: (message: unknown) => void;
 }
 
 /** Provider-neutral client transport. WebSockets, SSE, polling, and vendor SDKs can implement it. */
@@ -64,6 +70,8 @@ export interface RealtimeManager {
   stop: () => void;
   subscribe: (listener: (event: StateRealtimeEvent) => void) => () => void;
   getActiveStreamCount: () => number;
+  /** Sends a message up a live stream's socket, if the transport supports it. */
+  send: (streamId: string, message: unknown) => void;
 }
 
 export interface RealtimeQuery {
@@ -137,6 +145,9 @@ export function createRealtimeManager(
       return () => listeners.delete(listener);
     },
     getActiveStreamCount: () => subscriptions.size,
+    send: (streamId, message) => {
+      subscriptions.get(streamId)?.send?.(message);
+    },
   };
 }
 
