@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { AsyncLocalStorage } from "node:async_hooks";
 
 // Per-request isolation for server/Worker environments. In the browser

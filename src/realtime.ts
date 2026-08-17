@@ -175,7 +175,7 @@ function resourceVariants(value: string): Set<string> {
     invocations: ["invocation"],
     triggers: ["trigger"],
     endpoints: ["endpoint"],
-    members: ["org_members", "organization_members"],
+    members: ["org_members"],
     collections: ["entity_type_configs", "entitytypeconfigs"],
     page_entity: ["entities", "entity"],
     current_function: ["functions", "function", "entities", "entity"],
