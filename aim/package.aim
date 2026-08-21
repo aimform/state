@@ -1,0 +1,37 @@
+aim version 2.0
+
+system AimStateRuntime
+
+capability RuntimeState
+
+entity Store:
+    field name is Text and required and unique
+
+entity AsyncAction:
+    field name is Text and required
+    field loadingKey is Text and required
+
+entity RealtimeQuery:
+    field action is Text and required
+    field resource is Text and optional
+
+entity RealtimeMutation:
+    field operation is Text and required
+    field resource is Text and required
+
+package AimState version 1.0.0:
+    provides capability StoreConstruction
+    provides capability ImmutableUpdates
+    provides capability AsyncLoadingTracking
+    provides capability ErrorTracking
+    provides capability RequestScope
+    provides capability RealtimeCoordination
+
+capability StoreConstruction
+capability ImmutableUpdates
+capability AsyncLoadingTracking
+capability ErrorTracking
+capability RequestScope
+capability RealtimeCoordination
+
+effect StateUpdate

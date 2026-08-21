@@ -77,6 +77,8 @@ function makeSet<T extends Record<string, unknown>>(
 }
 
 type FullStateOf<T> = T & { loading: Record<string, boolean>; errors: Record<string, string | null> };
+// biome-ignore lint/complexity/noBannedTypes: index signature must use any — unknown breaks Partial<T> compatibility
+// biome-ignore lint/suspicious/noExplicitAny: index signature must use any — unknown breaks Partial<T> compatibility
 type StateOf<T> = FullStateOf<T> & Record<string, (...args: any[]) => any>;
 
 function buildBoundStore<T extends Record<string, unknown>>(
@@ -92,8 +94,11 @@ function buildBoundStore<T extends Record<string, unknown>>(
   // because `zustand/react`'s `useStore(api, selector)` closes over the
   // original `api` object and always reads `api.getInitialState` from that
   // closure. We need to mutate `api` itself for the override to take effect.
-  const api = createVanillaStore<StateOf<T>>((set: any, get: any) => {
-    const immerSet = makeSet(set, get);
+  const api = createVanillaStore<StateOf<T>>((set, get) => {
+    const immerSet = makeSet(
+      set as unknown as (fn: (s: T) => T) => void,
+      get as () => T,
+    );
     const boundActions = buildActions(
       initial as T,
       actionsFn,
@@ -210,12 +215,20 @@ export function createServerStore<T extends Record<string, unknown>>(
 ) {
   type FullState = T & { loading: Record<string, boolean>; errors: Record<string, string | null> };
 
+  // biome-ignore lint/complexity/noBannedTypes: index signature must use any for setState compatibility
+  // biome-ignore lint/suspicious/noExplicitAny: index signature must use any — unknown breaks Partial<T> compatibility
   const store = createVanillaStore<FullState & Record<string, (...args: any[]) => any>>(() => {
     // vanila store's set/get
-    const vSet = (fn: (s: FullState) => FullState) => store.setState(fn(store.getState()) as any);
+    const vSet = (fn: (s: FullState) => FullState) =>
+      // biome-ignore lint/complexity/noBannedTypes: index signature must use any for setState compatibility
+      // biome-ignore lint/suspicious/noExplicitAny: index signature must use any — unknown breaks Partial<T> compatibility
+      store.setState(fn(store.getState()) as FullState & Record<string, (...args: any[]) => any>);
     const vGet = () => store.getState();
 
-    const immerSet = makeSet(vSet as any, vGet as any);
+    const immerSet = makeSet(
+      vSet as unknown as (fn: (s: T) => T) => void,
+      vGet as unknown as () => T,
+    );
     const boundActions = buildActions(
       initial as T,
       actionsFn,
@@ -230,6 +243,7 @@ export function createServerStore<T extends Record<string, unknown>>(
       loading: ((initial as Record<string, unknown>).loading as Record<string, boolean>) ?? {},
       errors: ((initial as Record<string, unknown>).errors as Record<string, string | null>) ?? {},
       ...boundActions,
+    // biome-ignore lint/suspicious/noExplicitAny: index signature must use any — unknown breaks Partial<T> compatibility
     } as unknown as FullState & Record<string, (...args: any[]) => any>;
   });
 
