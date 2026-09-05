@@ -1,0 +1,9 @@
+{
+  "id": "state-core",
+  "contractVersion": "1",
+  "inputItems": ["before"],
+  "outputItems": ["after"],
+  "failureMessage": "state provider failed",
+  "queryArgs": [{ "z": 3, "a": 1 }],
+  "expectedSerializedQueryArgs": "[{\"a\":1,\"z\":3}]"
+}

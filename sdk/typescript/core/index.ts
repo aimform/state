@@ -1,5 +1,7 @@
-export type { LoadingContext } from "./createStore";
-export { createServerStore, createSSRSafeStore, createStore, withLoading } from "./createStore";
+/** Vanilla state contracts and realtime coordination types. */
+export type { CreateStoreOptions, LoadingContext, StateOf } from "./store";
+export { createServerStore, withLoading } from "./store";
+export type { AsyncState, StoreHook } from "./types";
 export type {
   RealtimeCoordinator,
   RealtimeCoordinatorOptions,
@@ -25,5 +27,3 @@ export {
   isRealtimeQueryAction,
   serializeRealtimeQueryArgs,
 } from "./realtime";
-export { getScoped, runInRequestScope } from "./request-scope";
-export type { AsyncState, StoreHook } from "./types";

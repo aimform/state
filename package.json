@@ -1,24 +1,59 @@
 {
   "name": "@aimform/state",
   "version": "0.2.1",
+  "architecture": {
+    "class": "system",
+    "elements": [
+      "Memory",
+      "Control"
+    ],
+    "role": "semantic-owner",
+    "languages": [
+      "TypeScript"
+    ],
+    "runtimes": [
+      "universal",
+      "node",
+      "web",
+      "react"
+    ],
+    "providerOwner": "@aimform/state",
+    "bindingOwner": "@aimform/state"
+  },
   "description": "Aimform State — complete Zustand + Immer abstraction. Create stores, async actions, and hooks without importing zustand or immer directly.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./sdk/typescript/index.ts",
+      "import": "./sdk/typescript/index.ts"
+    },
+    "./core": {
+      "types": "./sdk/typescript/core/index.ts",
+      "import": "./sdk/typescript/core/index.ts"
+    },
+    "./runtime": {
+      "types": "./sdk/typescript/runtime/index.ts",
+      "import": "./sdk/typescript/runtime/index.ts"
+    },
+    "./bindings/react": {
+      "types": "./sdk/typescript/bindings/react/index.ts",
+      "import": "./sdk/typescript/bindings/react/index.ts"
     }
   },
   "files": [
-    "src",
+    "aim",
+    "sdk",
+    "conformance",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.provider=istanbul",
+    "conformance": "vitest run sdk/typescript/conformance.test.ts"
   },
   "dependencies": {
     "immer": "^10.0.0",

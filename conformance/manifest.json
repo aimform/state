@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../../docs/restructure/aimform-conformance-manifest.schema.json",
+  "schemaVersion": "aimform.conformance/1",
+  "owner": "@aimform/state",
+  "contractVersion": "1",
+  "runner": "sdk/typescript/conformance.test.ts",
+  "fixtures": [
+    {
+      "id": "state-core",
+      "path": "conformance/core.json",
+      "categories": ["behavior", "errors", "serialization", "ordering"]
+    }
+  ],
+  "runtimes": [
+    { "name": "typescript", "status": "covered" },
+    { "name": "node", "status": "covered" },
+    { "name": "web", "status": "covered" },
+    { "name": "react", "status": "partial" }
+  ],
+  "ports": [
+    { "name": "RealtimeTransportAdapter", "implementations": ["owner-defined transport adapters"] }
+  ]
+}

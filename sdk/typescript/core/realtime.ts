@@ -18,6 +18,8 @@ export interface StateRealtimeMutation {
 export interface StateRealtimeEvent {
   type: string;
   sequence?: number;
+  /** Provider-retained history delivered during the first subscription. */
+  isReplay?: boolean;
   event?: StateRealtimeMutation | Record<string, unknown>;
   resource?: string;
   resources?: string[];
@@ -28,6 +30,8 @@ export interface StateRealtimeEvent {
 /** Raw event shape emitted by a realtime provider adapter. */
 export interface RealtimeTransportEvent {
   type: string;
+  /** Provider-retained history delivered during the first subscription. */
+  isReplay?: boolean;
   [key: string]: unknown;
 }
 
@@ -120,7 +124,11 @@ export function createRealtimeManager(
   let subscriptions = new Map<string, RealtimeTransportSubscription>();
 
   const emit = (event: StateRealtimeEvent): void => {
-    coordinator.ingest(event);
+    // Initial replay hydrates the page's authoritative stores already. Feeding
+    // retained history into the query invalidator turns a large replay window
+    // into a refresh storm; reconnects remain live because transports only tag
+    // the first subscription's retained events.
+    if (!event.isReplay) coordinator.ingest(event);
     for (const listener of listeners) listener(event);
   };
 

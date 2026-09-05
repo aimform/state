@@ -8,6 +8,12 @@ npm install @aimform/state
 
 No other state dependencies needed — `zustand` and `immer` are bundled.
 
+The SDK exposes vanilla store construction, `withLoading`, and realtime
+coordination from `@aimform/state/core`, request-scoped host support from
+`@aimform/state/runtime`, and React store construction from
+`@aimform/state/bindings/react`. The root export remains stable for existing
+applications.
+
 ## Usage
 
 ### `createStore(initialData, actionsFactory)`
@@ -49,6 +55,14 @@ Wraps an async action. Returns a function that receives the store context and th
 - `errors: Record<string, string | null>` — error message on failure, `null` otherwise
 - Both managed entirely by `withLoading` — you never set them manually
 
+For server, worker, test, or other non-React code, import
+`createServerStore` and `withLoading` from `@aimform/state/core`. This entry
+point does not load React:
+
+```ts
+import { createServerStore, withLoading } from "@aimform/state/core";
+```
+
 ### `LoadingContext`
 
 ```ts
@@ -88,6 +102,12 @@ The event should identify a resource with `event.model`, `event.table`,
 not required; refetching through the normal authenticated API keeps filters,
 pagination, and row-level ACLs authoritative. The coordinator deduplicates
 sequenced events, coalesces bursts, and prevents overlapping refreshes.
+
+Provider transports may mark retained history with `isReplay: true`. Managers
+deliver those events to listeners but do not send them through the query
+invalidator: the initial authenticated fetch has already hydrated the store,
+so treating a replay window as new writes would cause a refetch storm. Live
+events remain unmarked and continue to invalidate matching queries normally.
 
 ### Hooks
 
@@ -175,3 +195,10 @@ createRoot(root).render(<App />);
 ## License
 
 MIT © Universal Reason LLC
+
+## Conformance
+
+`conformance/manifest.json` and `conformance/core.json` define the portable
+store contract. The owner-local runner verifies vanilla server-store behavior,
+loading/error ordering, and deterministic realtime query serialization without
+loading React. React binding behavior remains covered by the binding tests.

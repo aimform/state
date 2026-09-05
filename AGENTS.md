@@ -4,6 +4,14 @@
 
 `@aimform/state` is the **only allowed** state management layer in Aimform. It wraps Zustand 5 + Immer 11 behind a single API. Services and packages **must never** import `zustand` or `immer` directly.
 
+## SDK layer layout
+
+Vanilla store construction, `withLoading`, and realtime contracts live under
+`sdk/typescript/core`, request-scoped host support under
+`sdk/typescript/runtime`, and React store construction under
+`sdk/typescript/bindings/react`. Use the root package export for compatibility;
+new framework-neutral integrations should depend on the `core` entrypoint.
+
 ## Exports
 
 | Export | Kind | Purpose |
@@ -14,6 +22,13 @@
 | `LoadingContext` | interface | Context object passed to `withLoading` callbacks |
 | `AsyncState` | type | `{ loading, errors }` shape |
 | `StoreHook` | type | Hook type for store consumers |
+| `StateRealtimeEvent` / `RealtimeTransportEvent` | types | Provider-neutral realtime envelopes; retained history may set `isReplay` |
+
+For a React-free import, use:
+
+```ts
+import { createServerStore, withLoading } from "@aimform/state/core";
+```
 
 ## Usage
 
@@ -165,4 +180,12 @@ function withLoading<Args extends unknown[]>(
   key: string,
   fn: (ctx: LoadingContext, ...args: Args) => Promise<void>
 ): (set: SetFn, get: GetFn, ...args: Args) => Promise<void>;
+
+## Conformance
+
+The package-local `conformance/manifest.json` declares the State contract and
+`conformance/core.json` is run by `sdk/typescript/conformance.test.ts`. Keep
+vanilla store, loading/error, deterministic serialization, and realtime
+transport invariants there; React-specific behavior belongs in the binding
+tests.
 ```

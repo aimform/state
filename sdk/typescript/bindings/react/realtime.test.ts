@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createStore, withLoading } from "./createStore";
-import { createRealtimeCoordinator, createRealtimeManager, ingestRealtimeEvent } from "./realtime";
+import { createStore } from "./createStore";
+import { withLoading } from "../../core/store";
+import { createRealtimeCoordinator, createRealtimeManager, ingestRealtimeEvent, type StateRealtimeEvent } from "../../core/realtime";
 
 function waitForTimers(delay = 0): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delay));
@@ -139,5 +140,40 @@ describe("realtime coordinator", () => {
 
     expect(fetchItems).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
+  });
+
+  it("delivers initial replay events without invalidating already hydrated queries", async () => {
+    const refresh = vi.fn();
+    const received: StateRealtimeEvent[] = [];
+    const coordinator = createRealtimeCoordinator({ debounceMs: 0 });
+    coordinator.registerQuery({
+      key: "spaces:org-1",
+      actionName: "fetchSpaces",
+      args: ["org-1"],
+      refresh,
+    });
+    const manager = createRealtimeManager(
+      {
+        provider: "test",
+        subscribe: (_request, onEvent) => {
+          onEvent({
+            type: "mutation",
+            isReplay: true,
+            sequence: 1,
+            event: { model: "spaces", operation: "updated" },
+          });
+          return { close: () => {} };
+        },
+      },
+      coordinator,
+    );
+    manager.subscribe((event) => received.push(event));
+    manager.start([{ id: "org", request: { streamUrl: "wss://example.test/org", token: "token" } }]);
+    await waitForTimers(50);
+
+    expect(received).toHaveLength(1);
+    expect(received[0]?.isReplay).toBe(true);
+    expect(refresh).not.toHaveBeenCalled();
+    manager.stop();
   });
 });
