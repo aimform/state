@@ -3,6 +3,7 @@ export type { CreateStoreOptions, LoadingContext, StateOf } from "./store";
 export { createServerStore, withLoading } from "./store";
 export type { AsyncState, StoreHook } from "./types";
 export type {
+  RealtimeActivityState,
   RealtimeCoordinator,
   RealtimeCoordinatorOptions,
   RealtimeManager,
@@ -14,6 +15,7 @@ export type {
   RealtimeTransportEvent,
   RealtimeTransportSubscription,
   RealtimeTransportSubscriptionRequest,
+  RealtimeSubscriptionOptions,
   StateRealtimeEvent,
   StateRealtimeMutation,
 } from "./realtime";

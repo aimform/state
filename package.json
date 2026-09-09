@@ -18,7 +18,8 @@
       "react"
     ],
     "providerOwner": "@aimform/state",
-    "bindingOwner": "@aimform/state"
+    "bindingOwner": "@aimform/state",
+    "externalResourceBoundary": false
   },
   "description": "Aimform State — complete Zustand + Immer abstraction. Create stores, async actions, and hooks without importing zustand or immer directly.",
   "type": "module",

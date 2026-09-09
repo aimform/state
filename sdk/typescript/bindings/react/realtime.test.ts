@@ -176,4 +176,48 @@ describe("realtime coordinator", () => {
     expect(refresh).not.toHaveBeenCalled();
     manager.stop();
   });
+
+  it("buffers ordinary events while idle but keeps notification listeners live", async () => {
+    const refresh = vi.fn();
+    const ordinary: StateRealtimeEvent[] = [];
+    const notifications: StateRealtimeEvent[] = [];
+    const received: Array<(event: { type: string; [key: string]: unknown }) => void> = [];
+    const coordinator = createRealtimeCoordinator({ debounceMs: 0 });
+    coordinator.registerQuery({
+      key: "spaces:org-1",
+      actionName: "fetchSpaces",
+      args: ["org-1"],
+      refresh,
+    });
+    const manager = createRealtimeManager(
+      {
+        provider: "test",
+        subscribe: (_request, onEvent) => {
+          received.push(onEvent);
+          return { close: () => {} };
+        },
+      },
+      coordinator,
+    );
+    manager.subscribe((event) => ordinary.push(event));
+    manager.subscribe((event) => notifications.push(event), { deliverWhileIdle: true });
+    manager.start([{ id: "org", request: { streamUrl: "wss://example.test/org", token: "token" } }]);
+    manager.setActivityState("idle");
+    received[0]({ type: "mutation", sequence: 20, event: { model: "spaces", operation: "updated" } });
+
+    expect(manager.getActivityState()).toBe("idle");
+    expect(manager.getQueuedEventCount()).toBe(1);
+    expect(ordinary).toHaveLength(0);
+    expect(notifications).toHaveLength(1);
+    expect(refresh).not.toHaveBeenCalled();
+
+    manager.setActivityState("active");
+    await waitForTimers();
+
+    expect(manager.getQueuedEventCount()).toBe(0);
+    expect(ordinary).toHaveLength(1);
+    expect(notifications).toHaveLength(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    manager.stop();
+  });
 });

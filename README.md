@@ -91,6 +91,13 @@ import { createRealtimeManager } from "@aimform/state";
 
 const manager = createRealtimeManager(myWebSocketOrSseAdapter);
 manager.start([{ id: "organization", request: { streamUrl, token } }]);
+
+// Keep the notification listener live, but pause ordinary UI invalidation
+// while the app is backgrounded or inactive. Buffered events flush in order on
+// the next active transition.
+manager.subscribe(showNotification, { deliverWhileIdle: true });
+manager.setActivityState("idle");
+manager.setActivityState("active");
 ```
 
 `myWebSocketOrSseAdapter` can be implemented with Cloudflare Durable Objects,
@@ -108,6 +115,9 @@ deliver those events to listeners but do not send them through the query
 invalidator: the initial authenticated fetch has already hydrated the store,
 so treating a replay window as new writes would cause a refetch storm. Live
 events remain unmarked and continue to invalidate matching queries normally.
+When a manager is idle, non-replay events are retained in a bounded in-memory
+queue instead. Listeners opt into idle delivery explicitly for notifications;
+normal listeners and query invalidation resume once the manager becomes active.
 
 ### Hooks
 

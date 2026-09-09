@@ -2,6 +2,7 @@ export type { CreateStoreOptions, LoadingContext, StateOf } from "./core/store";
 export { createServerStore, withLoading } from "./core/store";
 export { createSSRSafeStore, createStore } from "./bindings/react/createStore";
 export type {
+  RealtimeActivityState,
   RealtimeCoordinator,
   RealtimeCoordinatorOptions,
   RealtimeManager,
@@ -13,6 +14,7 @@ export type {
   RealtimeTransportEvent,
   RealtimeTransportSubscription,
   RealtimeTransportSubscriptionRequest,
+  RealtimeSubscriptionOptions,
   StateRealtimeEvent,
   StateRealtimeMutation,
 } from "./core/realtime";

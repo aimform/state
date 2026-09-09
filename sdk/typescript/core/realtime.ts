@@ -73,10 +73,24 @@ export interface RealtimeStream {
   mapEvent?: (event: RealtimeTransportEvent) => StateRealtimeEvent | readonly StateRealtimeEvent[] | undefined;
 }
 
+export type RealtimeActivityState = "active" | "idle";
+
+export interface RealtimeSubscriptionOptions {
+  /** Deliver this listener while the app is idle (for notifications only). */
+  deliverWhileIdle?: boolean;
+}
+
 export interface RealtimeManager {
   start: (streams: readonly RealtimeStream[]) => void;
   stop: () => void;
-  subscribe: (listener: (event: StateRealtimeEvent) => void) => () => void;
+  subscribe: (
+    listener: (event: StateRealtimeEvent) => void,
+    options?: RealtimeSubscriptionOptions,
+  ) => () => void;
+  /** Pauses ordinary event delivery and query invalidation without closing the notification transport. */
+  setActivityState: (state: RealtimeActivityState) => void;
+  getActivityState: () => RealtimeActivityState;
+  getQueuedEventCount: () => number;
   getActiveStreamCount: () => number;
   /** Sends a message up a live stream's socket, if the transport supports it. */
   send: (streamId: string, message: unknown) => void;
@@ -120,21 +134,55 @@ export function createRealtimeManager(
   adapter: RealtimeTransportAdapter,
   coordinator: RealtimeCoordinator = getRealtimeCoordinator(),
 ): RealtimeManager {
-  const listeners = new Set<(event: StateRealtimeEvent) => void>();
+  const listeners = new Map<
+    (event: StateRealtimeEvent) => void,
+    RealtimeSubscriptionOptions | undefined
+  >();
   let subscriptions = new Map<string, RealtimeTransportSubscription>();
+  let activityState: RealtimeActivityState = "active";
+  const queuedEvents: StateRealtimeEvent[] = [];
+  const MAX_QUEUED_EVENTS = 2_000;
 
-  const emit = (event: StateRealtimeEvent): void => {
+  const deliver = (event: StateRealtimeEvent, includeIdleListeners: boolean): void => {
     // Initial replay hydrates the page's authoritative stores already. Feeding
     // retained history into the query invalidator turns a large replay window
     // into a refresh storm; reconnects remain live because transports only tag
     // the first subscription's retained events.
     if (!event.isReplay) coordinator.ingest(event);
-    for (const listener of listeners) listener(event);
+    for (const [listener, options] of listeners) {
+      if (!includeIdleListeners && options?.deliverWhileIdle) continue;
+      listener(event);
+    }
+  };
+
+  const emit = (event: StateRealtimeEvent): void => {
+    if (activityState === "idle" && !event.isReplay) {
+      if (queuedEvents.length >= MAX_QUEUED_EVENTS) queuedEvents.shift();
+      queuedEvents.push(event);
+      // The user-event stream remains live so notification listeners can alert
+      // the user while ordinary UI projections stay quiet.
+      for (const [listener, options] of listeners) {
+        if (options?.deliverWhileIdle) listener(event);
+      }
+      return;
+    }
+    deliver(event, true);
+  };
+
+  const setActivityState = (next: RealtimeActivityState): void => {
+    if (activityState === next) return;
+    activityState = next;
+    if (next !== "active" || queuedEvents.length === 0) return;
+    const pending = queuedEvents.splice(0, queuedEvents.length);
+    // Buffered notification events were already delivered to notification
+    // listeners while idle. Flush them only to UI/coordinator consumers.
+    for (const event of pending) deliver(event, false);
   };
 
   const stop = (): void => {
     for (const subscription of subscriptions.values()) subscription.close();
     subscriptions = new Map();
+    queuedEvents.length = 0;
   };
 
   const start = (streams: readonly RealtimeStream[]): void => {
@@ -152,10 +200,13 @@ export function createRealtimeManager(
   return {
     start,
     stop,
-    subscribe: (listener) => {
-      listeners.add(listener);
+    subscribe: (listener, options) => {
+      listeners.set(listener, options);
       return () => listeners.delete(listener);
     },
+    setActivityState,
+    getActivityState: () => activityState,
+    getQueuedEventCount: () => queuedEvents.length,
     getActiveStreamCount: () => subscriptions.size,
     send: (streamId, message) => {
       subscriptions.get(streamId)?.send?.(message);

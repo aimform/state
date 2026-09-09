@@ -23,6 +23,7 @@ new framework-neutral integrations should depend on the `core` entrypoint.
 | `AsyncState` | type | `{ loading, errors }` shape |
 | `StoreHook` | type | Hook type for store consumers |
 | `StateRealtimeEvent` / `RealtimeTransportEvent` | types | Provider-neutral realtime envelopes; retained history may set `isReplay` |
+| `RealtimeManager.setActivityState` | method | Buffers ordinary live events while idle and preserves notification delivery |
 
 For a React-free import, use:
 
